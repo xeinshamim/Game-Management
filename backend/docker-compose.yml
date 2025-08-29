@@ -1,0 +1,228 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: gaming_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: gaming123
+      MONGO_INITDB_DATABASE: gaming_tournament
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - gaming_network
+
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: gaming_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gaming_network
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: gaming_auth_service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRES_IN: 24h
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - gaming_network
+
+  # Tournament Service
+  tournament-service:
+    build:
+      context: ./tournament-service
+      dockerfile: Dockerfile
+    container_name: gaming_tournament_service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+    depends_on:
+      - mongodb
+      - redis
+      - auth-service
+    networks:
+      - gaming_network
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: gaming_payment_service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+      BKASH_API_KEY: your-bkash-api-key
+      BKASH_API_SECRET: your-bkash-api-secret
+      NAGAD_API_KEY: your-nagad-api-key
+      NAGAD_API_SECRET: your-nagad-api-secret
+    depends_on:
+      - mongodb
+      - redis
+      - auth-service
+    networks:
+      - gaming_network
+
+  # Match Scoring Service
+  match-service:
+    build:
+      context: ./match-service
+      dockerfile: Dockerfile
+    container_name: gaming_match_service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: development
+      PORT: 3004
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TOURNAMENT_SERVICE_URL: http://tournament-service:3002
+    depends_on:
+      - mongodb
+      - redis
+      - auth-service
+      - tournament-service
+    networks:
+      - gaming_network
+
+  # Social Service
+  social-service:
+    build:
+      context: ./social-service
+      dockerfile: Dockerfile
+    container_name: gaming_social_service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+    depends_on:
+      - mongodb
+      - redis
+      - auth-service
+    networks:
+      - gaming_network
+
+  # Scheduler Service
+  scheduler-service:
+    build:
+      context: ./scheduler-service
+      dockerfile: Dockerfile
+    container_name: gaming_scheduler_service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TOURNAMENT_SERVICE_URL: http://tournament-service:3002
+    depends_on:
+      - mongodb
+      - redis
+      - auth-service
+      - tournament-service
+    networks:
+      - gaming_network
+
+  # Anti-Cheat Service
+  anti-cheat-service:
+    build:
+      context: ./anti-cheat-service
+      dockerfile: Dockerfile
+    container_name: gaming_anti_cheat_service
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      MONGODB_URI: mongodb://admin:gaming123@mongodb:27017/gaming_tournament?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+      MATCH_SERVICE_URL: http://match-service:3004
+    depends_on:
+      - mongodb
+      - redis
+      - auth-service
+      - match-service
+    networks:
+      - gaming_network
+
+  # API Gateway (Optional - for production)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: gaming_api_gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TOURNAMENT_SERVICE_URL: http://tournament-service:3002
+      PAYMENT_SERVICE_URL: http://payment-service:3003
+      MATCH_SERVICE_URL: http://match-service:3004
+      SOCIAL_SERVICE_URL: http://social-service:3005
+      ANTI_CHEAT_SERVICE_URL: http://anti-cheat-service:3006
+    depends_on:
+      - auth-service
+      - tournament-service
+      - payment-service
+      - match-service
+      - social-service
+      - anti-cheat-service
+    networks:
+      - gaming_network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  gaming_network:
+    driver: bridge 
