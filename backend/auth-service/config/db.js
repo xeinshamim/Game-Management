@@ -26,7 +26,7 @@ if (process.env.NODE_ENV !== 'production') {
 // MongoDB connection
 const connectMongoDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://xein_db_user:mwFxtjb1EPRQ0CFM@cluster0.pysgaid.mongodb.net/';
+    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/gaming_tournament';
     
     await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
